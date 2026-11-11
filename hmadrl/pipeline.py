@@ -846,13 +846,14 @@ def _reward(
     win = (hist + [gross])[-max(5, int(cfg.reward_window)) :]
     cvar = _compute_cvar(win, cfg.cvar_alpha)
     cp = cfg.cvar_penalty * max(0.0, -cvar)
-    cost_norm = (tx + sl + tp) / (1.0 + abs(gross))
+    # Net return: subtract absolute costs from gross (no normalization by gross).
+    net_return = gross - tx - sl
+    turnover_cost = cfg.turnover_penalty * t
     cvar_norm = max(0.0, -cvar) / (1.0 + abs(cvar))
-    turnover_norm = t / (1.0 + t)
     rank_penalty = cfg.rank_loss_coef * max(0.0, float(rank_loss))
     hold_cost = cfg.hold_penalty_coef * max(0.0, float(hold_penalty))
     entropy_bonus = cfg.domain_entropy_coef * max(0.0, float(domain_entropy_bonus))
-    r = gross - cost_norm - down - cvar_norm - turnover_norm - rank_penalty - hold_cost + entropy_bonus
+    r = net_return - turnover_cost - down - cvar_norm - rank_penalty - hold_cost + entropy_bonus
     return {
         "gross_return": float(gross),
         "turnover": float(t),
@@ -1271,6 +1272,7 @@ def _run_single(config: ProjectConfig, mode: str, seed: int, prepared: PreparedD
             stock_feature_names=window_context.stock_feature_names,
             rl_config=config.rl,
             stochastic_control=config.stochastic_control if spec.use_stochastic_control else None,
+            lookback_days=config.data.lookback,
             seed=seed + window_idx * 13,
         )
         domain_alloc, stock_allocs, prev_weights = _init_allocations(window_context.domain_to_stocks)
